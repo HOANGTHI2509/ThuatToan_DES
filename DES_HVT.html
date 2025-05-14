@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mã hóa và Giải mã File bằng DES</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        h2 {
+            color: #444;
+        }
+        input[type="file"], input[type="text"], button {
+            margin: 10px 0;
+            padding: 8px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        #encryptStatus, #decryptStatus {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+        }
+        #decryptedContent {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        img#previewImage {
+            max-width: 100%;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Mã hóa và Giải mã File bằng DES</h1>
+
+    <div class="section">
+        <h2>Mã hóa File</h2>
+        <input type="file" id="fileInput">
+        <input type="text" id="encryptKey" placeholder="Nhập khóa mã hóa (bất kỳ độ dài)">
+        <button onclick="encryptFile()">Mã hóa và Tải về</button>
+        <div id="encryptStatus"></div>
+    </div>
+
+    <div class="section">
+        <h2>Giải mã File</h2>
+        <input type="file" id="decryptFileInput" accept=".enc">
+        <input type="text" id="decryptKey" placeholder="Nhập khóa giải mã (bất kỳ độ dài)">
+        <button onclick="decryptFile()">Giải mã và Tải về</button>
+        <div id="decryptStatus"></div>
+        <div id="decryptedContent"></div>
+        <img id="previewImage" style="display: none;">
+    </div>
+
+    <script>
+        // Hàm mã hóa file
+        async function encryptFile() {
+            const fileInput = document.getElementById('fileInput');
+            const key = document.getElementById('encryptKey').value.trim();
+            const status = document.getElementById('encryptStatus');
+
+            if (!fileInput.files[0]) {
+                status.innerText = 'Vui lòng chọn một file!';
+                status.classList.add('error');
+                return;
+            }
+            if (!key) {
+                status.innerText = 'Vui lòng nhập khóa mã hóa!';
+                status.classList.add('error');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    const fileContent = e.target.result;
+                    const wordArray = CryptoJS.lib.WordArray.create(new Uint8Array(fileContent));
+                    const encrypted = CryptoJS.DES.encrypt(wordArray, key, {
+                        mode: CryptoJS.mode.ECB,
+                        padding: CryptoJS.pad.Pkcs7
+                    }).toString();
+
+                    const blob = new Blob([encrypted], { type: 'text/plain' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = file.name + '.enc';
+                    link.click();
+                    status.innerText = 'Mã hóa thành công! File đã được tải về.';
+                    status.classList.remove('error');
+                } catch (error) {
+                    status.innerText = 'Lỗi khi mã hóa: ' + error.message;
+                    status.classList.add('error');
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Hàm giải mã file
+        async function decryptFile() {
+            const fileInput = document.getElementById('decryptFileInput');
+            const key = document.getElementById('decryptKey').value.trim();
+            const status = document.getElementById('decryptStatus');
+            const contentDiv = document.getElementById('decryptedContent');
+            const previewImage = document.getElementById('previewImage');
+
+            // Xóa nội dung cũ
+            contentDiv.innerText = '';
+            previewImage.style.display = 'none';
+
+            if (!fileInput.files[0]) {
+                status.innerText = 'Vui lòng chọn một file .enc!';
+                status.classList.add('error');
+                return;
+            }
+            if (!key) {
+                status.innerText = 'Vui lòng nhập khóa giải mã!';
+                status.classList.add('error');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = async function(e) {
+                try {
+                    const encryptedContent = e.target.result;
+                    const encryptedText = new TextDecoder().decode(new Uint8Array(encryptedContent));
+
+                    // Kiểm tra tính hợp lệ của dữ liệu mã hóa
+                    if (!encryptedText || !/^[A-Za-z0-9+/=]+$/.test(encryptedText.trim())) {
+                        status.innerText = 'File mã hóa không hợp lệ! Vui lòng kiểm tra lại file.';
+                        status.classList.add('error');
+                        return;
+                    }
+
+                    // Thử giải mã
+                    let decrypted;
+                    try {
+                        decrypted = CryptoJS.DES.decrypt(encryptedText, key, {
+                            mode: CryptoJS.mode.ECB,
+                            padding: CryptoJS.pad.Pkcs7
+                        });
+                    } catch (error) {
+                        status.innerText = 'Khóa giải mã không đúng! Vui lòng nhập lại khóa.';
+                        status.classList.add('error');
+                        return;
+                    }
+
+                    // Kiểm tra nếu giải mã thất bại
+                    if (!decrypted || decrypted.sigBytes <= 0) {
+                        status.innerText = 'Khóa giải mã không đúng! Vui lòng nhập lại khóa.';
+                        status.classList.add('error');
+                        return;
+                    }
+
+                    // Chuyển đổi dữ liệu giải mã
+                    const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
+                    const mimeType = file.name.endsWith('.txt') ? 'text/plain' :
+                                    file.name.endsWith('.jpg') || file.name.endsWith('.jpeg') ? 'image/jpeg' :
+                                    file.name.endsWith('.png') ? 'image/png' :
+                                    file.type || 'application/octet-stream';
+
+                    // Tạo file tải về
+                    let blob;
+                    if (decryptedText) {
+                        // Nếu là văn bản, lưu trực tiếp nội dung văn bản
+                        blob = new Blob([decryptedText], { type: 'text/plain' });
+                    } else {
+                        // Nếu không phải văn bản, chuyển sang Uint8Array
+                        const decryptedBytes = new Uint8Array(
+                            decrypted.words.reduce((acc, word) => {
+                                const bytes = new Uint8Array(new Int32Array([word]).buffer);
+                                return [...acc, ...bytes];
+                            }, []).slice(0, decrypted.sigBytes)
+                        );
+                        blob = new Blob([decryptedBytes], { type: mimeType });
+                    }
+
+                    // Tải file
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = file.name.replace('.enc', '') || 'decrypted_file';
+                    link.click();
+
+                    // Hiển thị nội dung
+                    if (mimeType.startsWith('text/') || decryptedText) {
+                        contentDiv.innerText = decryptedText || new TextDecoder().decode(
+                            new Uint8Array(
+                                decrypted.words.reduce((acc, word) => {
+                                    const bytes = new Uint8Array(new Int32Array([word]).buffer);
+                                    return [...acc, ...bytes];
+                                }, []).slice(0, decrypted.sigBytes)
+                            )
+                        );
+                    } else if (mimeType.startsWith('image/')) {
+                        previewImage.src = URL.createObjectURL(blob);
+                        previewImage.style.display = 'block';
+                    } else {
+                        contentDiv.innerText = `File giải mã (không phải văn bản/hình ảnh): ${file.name.replace('.enc', '')}\nKích thước: ${decrypted.sigBytes} bytes`;
+                    }
+
+                    status.innerText = 'Giải mã thành công! File đã được tải về và nội dung hiển thị bên dưới.';
+                    status.classList.remove('error');
+                } catch (error) {
+                    status.innerText = 'Lỗi khi giải mã: ' + error.message + '. Vui lòng kiểm tra lại khóa hoặc file.';
+                    status.classList.add('error');
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+    </script>
+</body>
+</html>
